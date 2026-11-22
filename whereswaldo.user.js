@@ -2,11 +2,10 @@
  // ==UserScript==
  // @name         Where's Waldo?
  // @namespace    MythosStudios
- // @version      0.21
+ // @version      0.4
  // @description  hide waldo on websites
  // @match        *://*/*
- // @grant        none
- // @licsense     MIT
+ // @grant         none
  // ==/UserScript==
 
  (function() {
@@ -14,121 +13,164 @@
  if (window.top != window.self) return;
  if (document.getElementById("waldo")) return;
 
- var things = document.getElementsByTagName("*");
- var hiding = [];
+ var last = null;
+ var waldo = null;
+ var message = null;
+ var old = null;
+ var source = "https://therealmythdeveloper.github.io/Where-sWaldo-/240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
 
- for (var i = 0; i < things.length; i++) {
- var el = things[i];
+ function hide() {
 
- if (el.tagName == "SCRIPT" || el.tagName == "STYLE" || el.tagName == "NOSCRIPT") continue;
- if (el.tagName == "IFRAME") continue;
- if (el.closest && el.closest("#waldo-found")) continue; 
+ var stuff = document.getElementsByTagName("*");
+ var places = [];
 
- // images can be waldo too 
- if (el.tagName == "IMG" && el.width > 35 && el.height > 35) {
- hiding.push({type:"image", thing:el});
+ for (var i = 0; i < stuff.length; i++) {
+ var el = stuff[i];
+
+ if (el.tagName == "SCRIPT" || el.tagName == "STYLE" || el.tagName == "NOSCRIPT" || el.tagName == "IFRAME") continue;
+ if (el.closest && el.closest("#waldo")) continue;
+
+ if (el.tagName == "IMG" && el.width > 35 && el.height > 35 && el != last) {
+ places.push({type:"image", thing:el});
  }
 
- // looking for text to hide in
  for (var j = 0; j < el.childNodes.length; j++) {
  var node = el.childNodes[j];
 
  if (node.nodeType != 3) continue;
  if (!node.textContent.trim()) continue;
+ if (el == last) continue;
 
- var parts = node.textContent.split(/(\s+)/);
+ var bits = node.textContent.split(/(\s+)/);
  var count = 0;
 
- for (var k = 0; k < parts.length; k++) {
- if (/^[a-zA-Z]{3,}$/.test(parts[k])) count++;
+ for (var k = 0; k < bits.length; k++) {
+ if (/^[a-zA-Z]{3,}$/.test(bits[k])) count++;
  }
 
- if (count > 0) {
- hiding.push({type:"word", thing:node, parts:parts});
- }
+ if (count > 0) places.push({type:"word", thing:node, parent:el, bits:bits});
  }
  }
 
- if (hiding.length == 0) return;
+ if (places.length == 0) return;
 
- var pick = hiding[Math.floor(Math.random() * hiding.length)];
+ var choices = [];
+
+ for (var i = 0; i < places.length; i++) {
+ if (places[i].thing != last && places[i].parent != last)
+ choices.push(places[i]);
+ }
+
+ if (choices.length > 0) places = choices;
+
+ var pick = places[Math.floor(Math.random() * places.length)];
+ last = pick.thing;
 
  if (pick.type == "word") {
 
- var bits = pick.parts;
+ var bits = pick.bits;
  var word = Math.floor(Math.random() * bits.length);
 
  while (!/^[a-zA-Z]{3,}$/.test(bits[word])) {
  word = Math.floor(Math.random() * bits.length);
  }
 
- var span = document.createElement("span");
- span.id = "waldo";
- span.style.color = "red";
- span.style.cursor = "pointer";
+ var wrap = document.createElement("span");
+ wrap.id = "waldo";
 
- for (var k = 0; k < bits.length; k++) {
- if (k == word) {
- span.textContent = bits[k];
- pick.thing.parentNode.insertBefore(span, pick.thing);
+ // sometimes he is a red word, sometimes his tiny self
+ if (Math.random() < 0.5) {
+
+ wrap.textContent = bits[word];
+ wrap.style.color = "rgb(" + (150 + Math.random() * 105) + ", " + (40 + Math.random() * 100) + ", " + (40 + Math.random() * 100) + ")";
+ wrap.style.opacity = 0.5 + Math.random() * 0.5;
+
  } else {
- span.parentNode && span.appendChild(document.createTextNode(bits[k]));
- }
+
+ var tiny = document.createElement("img");
+ tiny.src = source;
+ tiny.style.width = (8 + Math.random() * 10) + "px";
+ tiny.style.height = "auto";
+ tiny.style.verticalAlign = "middle";
+ tiny.style.cursor = "pointer";
+ tiny.style.opacity = 0.7 + Math.random() * 0.3;
+ wrap.appendChild(tiny);
  }
 
- // rebuild the word around the disguise
+ wrap.style.cursor = "pointer";
+
  var before = document.createDocumentFragment();
 
  for (var k = 0; k < bits.length; k++) {
- if (k == word) {
- before.appendChild(span);
- } else {
- before.appendChild(document.createTextNode(bits[k]));
- }
+ if (k == word) before.appendChild(wrap);
+ else before.appendChild(document.createTextNode(bits[k]));
  }
 
  pick.thing.parentNode.replaceChild(before, pick.thing);
+ old = pick.thing;
 
  } else {
 
- var img = pick.thing;
- img.id = "waldo";
- img.style.filter = "sepia(1) saturate(8) hue-rotate(-35deg)";
- img.style.cursor = "pointer";
+ waldo = pick.thing;
+ old = waldo.style.filter;
+ waldo.id = "waldo";
+ waldo.style.filter = "sepia(" + (0.2 + Math.random() * 0.5) + ") saturate(" + (1.2 + Math.random() * 3) + ") hue-rotate(" + (300 + Math.random() * 40) + "deg)";
+ waldo.style.cursor = "pointer";
 
  }
 
- var waldo = document.getElementById("waldo");
+ waldo = document.getElementById("waldo");
 
  waldo.onclick = function(e) {
+
  e.preventDefault();
  e.stopPropagation();
 
- if (pick.type == "image") {
- waldo.style.filter = "none";
- waldo.style.outline = "3px solid red";
- }
-
+ waldo.style.opacity = "1";
  waldo.style.color = "red";
+ waldo.style.filter = "none";
  waldo.style.cursor = "default";
  waldo.onclick = null;
 
- var found = document.createElement("div");
- found.textContent = "YOU FOUND WALDO!";
+ message = document.createElement("div");
+ message.textContent = "YOU FOUND WALDO!";
+ message.style.position = "fixed";
+ message.style.top = "20px";
+ message.style.left = "50%";
+ message.style.transform = "translateX(-50%)";
+ message.style.background = "#d71920";
+ message.style.color = "white";
+ message.style.padding = "12px 20px";
+ message.style.font = "bold 16px Arial";
+ message.style.borderRadius = "8px";
+ message.style.zIndex = "999999";
+ message.style.pointerEvents = "none";
 
- found.style.position = "fixed";
- found.style.top = "20px";
- found.style.left = "50%";
- found.style.transform = "translateX(-50%)";
- found.style.background = "#d71920";
- found.style.color = "white";
- found.style.padding = "12px 20px";
- found.style.font = "bold 16px Arial";
- found.style.zIndex = "999999";
- found.style.borderRadius = "8px";
- found.style.pointerEvents = "none";
+ document.body.appendChild(message);
 
- document.body.appendChild(found);
+ setTimeout(function() {
+
+ if (message) {
+ message.remove();
+ message = null;
+ }
+ if (pick.type == "word") {
+ var back = document.getElementById("waldo");
+ if (back) back.parentNode.replaceChild(old, back);
+ } else {
+ waldo.id = "";
+ waldo.style.filter = old;
+ waldo.style.cursor = "";
+ } 
+
+ hide(); 
+
+ }, 1300);
+ 
  };
+
+ }
+  
+ hide();
 
  })();
