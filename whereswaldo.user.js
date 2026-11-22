@@ -194,7 +194,7 @@ disguise.style.setProperty("display", "inline", "important");
 
 // tiny waldo
 function makeTinyWaldo(disguise) {
-
+ 
 var littleWaldo = document.createElement("img");
 
 littleWaldo.src = waldoPic;
