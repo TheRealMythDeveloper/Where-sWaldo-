@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Where's Waldo?
 // @namespace    MythosStudios
-// @version      0.1
+// @version      0.2
 // @description  hide waldo on websites
 // @match        *://*/*
 // @grant        none
@@ -12,22 +12,42 @@
 if (window.top != window.self) return;
 if (document.getElementById("waldo")) return;
 
+var words = document.getElementsByTagName("*");
+var places = []; 
+
+for (var i = 0; i < words.length; i++) {
+    var thing = words[i];
+
+    if (thing.children.length > 0) continue;
+    if (!thing.textContent.trim()) continue;
+
+    var rect = thing.getBoundingClientRect();
+    if (rect.width < 40 || rect.height < 10) continue;
+    if (rect.width > window.innerWidth) continue;
+
+    places.push(thing);
+}
+
+if (places.length == 0) return;
+
+var spot = places[Math.floor(Math.random() * places.length)];
+
 var img = document.createElement("img");
 img.id = "waldo";
-img.src = "240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
-img.alt = "Waldo"; 
+img.src = "https://therealmythdeveloper.github.io/Where-sWaldo-/240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
+img.alt = "Waldo";
 
-var size = Math.random() * 37 + 28;
-var x = Math.random() * (window.innerWidth - size);
-var y = Math.random() * (window.innerHeight - size);
-var z = Math.random() * 100;
+var size = Math.random() * 25 + 25;
+var rect = spot.getBoundingClientRect();
 
-img.style.position = "fixed";
-img.style.left = x + "px";
-img.style.top = y + "px";
-img.style.width = size + "px"; 
+spot.style.position = "relative";
+
+img.style.position = "absolute";
+img.style.width = size + "px";
 img.style.height = "auto";
-img.style.zIndex = z;
+img.style.left = Math.random() * Math.max(0, rect.width - size) + "px";
+img.style.top = Math.random() * Math.max(0, rect.height - size) + "px";
+img.style.zIndex = "1";
 img.style.cursor = "pointer";
 img.style.userSelect = "none";
 img.style.display = "block";
@@ -38,8 +58,8 @@ img.onclick = function(e) {
 
     e.stopPropagation();
 
-    img.style.zIndex = 999999;
     img.style.width = "90px";
+    img.style.zIndex = "999999";
     img.style.cursor = "default";
 
     var text = document.createElement("div");
@@ -62,15 +82,6 @@ img.onclick = function(e) {
     img.onclick = null;
 };
 
-function start() {
-    if (!document.body) {
-        setTimeout(start, 100);
-        return;
-    }
-
-    document.body.appendChild(img);
-}
-
-start();
+spot.appendChild(img);
 
 })();
