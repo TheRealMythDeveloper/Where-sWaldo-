@@ -1,176 +1,400 @@
+// ==UserScript==
+// @name         Where's Waldo?
+// @namespace    MythosStudios
+// @version      0.6
+// @description  hide waldo on websites
+// @match        *://*/*
+// @grant        none
+// @licsense     MITs
+// ==/UserScript==
 
- // ==UserScript==
- // @name         Where's Waldo?
- // @namespace    MythosStudios
- // @version      0.4
- // @description  hide waldo on websites
- // @match        *://*/*
- // @grant         none
- // ==/UserScript==
+(function() {
 
- (function() {
+if (window.top != window.self) return;
+if (document.getElementById("waldo")) return;
 
- if (window.top != window.self) return;
- if (document.getElementById("waldo")) return;
 
- var last = null;
- var waldo = null;
- var message = null;
- var old = null;
- var source = "https://therealmythdeveloper.github.io/Where-sWaldo-/240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
+var waldoPic = "https://therealmythdeveloper.github.io/Where-sWaldo-/240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
+var lastSpot = null;
+var foundMsg = null;
+var currentWaldo = null;
+var currentHidingThing = null;
 
- function hide() {
 
- var stuff = document.getElementsByTagName("*");
- var places = [];
+// dont put him in scripts and stuff, that would be bad.
+function skipThisElement(el) {
 
- for (var i = 0; i < stuff.length; i++) {
- var el = stuff[i];
+if (!el || !el.tagName) return true;
 
- if (el.tagName == "SCRIPT" || el.tagName == "STYLE" || el.tagName == "NOSCRIPT" || el.tagName == "IFRAME") continue;
- if (el.closest && el.closest("#waldo")) continue;
+var tag = el.tagName;
 
- if (el.tagName == "IMG" && el.width > 35 && el.height > 35 && el != last) {
- places.push({type:"image", thing:el});
- }
+if (tag == "SCRIPT" || tag == "STYLE" || tag == "NOSCRIPT" ||
+tag == "IFRAME" || tag == "SVG" || tag == "HEAD") return true;
 
- for (var j = 0; j < el.childNodes.length; j++) {
- var node = el.childNodes[j];
+if (el.closest && el.closest("#waldo")) return true;
 
- if (node.nodeType != 3) continue;
- if (!node.textContent.trim()) continue;
- if (el == last) continue;
+return false;
+}
 
- var bits = node.textContent.split(/(\s+)/);
- var count = 0;
 
- for (var k = 0; k < bits.length; k++) {
- if (/^[a-zA-Z]{3,}$/.test(bits[k])) count++;
- }
+// images are good hiding places
+function findImageSpots(allThings, hidingSpots) {
 
- if (count > 0) places.push({type:"word", thing:node, parent:el, bits:bits});
- }
- }
+for (var i = 0; i < allThings.length; i++) {
 
- if (places.length == 0) return;
+var pic = allThings[i];
+if (skipThisElement(pic)) continue;
+if (
+    pic.tagName != "IMG") continue;
+if (pic == lastSpot) continue;
+if (pic.width < 35 || pic.height < 35) continue;
 
- var choices = [];
+// dont mess with clickable images, I dont want to break links
+if (pic.closest && pic.closest("a,button")) continue;
 
- for (var i = 0; i < places.length; i++) {
- if (places[i].thing != last && places[i].parent != last)
- choices.push(places[i]);
- }
+hidingSpots.push({
+type: "image",
+thing: pic
+});
 
- if (choices.length > 0) places = choices;
+}
 
- var pick = places[Math.floor(Math.random() * places.length)];
- last = pick.thing;
+}
 
- if (pick.type == "word") {
 
- var bits = pick.bits;
- var word = Math.floor(Math.random() * bits.length);
+// find words to hide him in
+function findWordSpots(allThings, hidingSpots) {
 
- while (!/^[a-zA-Z]{3,}$/.test(bits[word])) {
- word = Math.floor(Math.random() * bits.length);
- }
+for (var i = 0; i < allThings.length; i++) {
 
- var wrap = document.createElement("span");
- wrap.id = "waldo";
+var el = allThings[i];
 
- // sometimes he is a red word, sometimes his tiny self
- if (Math.random() < 0.5) {
+if (skipThisElement(el)) continue;
 
- wrap.textContent = bits[word];
- wrap.style.color = "rgb(" + (150 + Math.random() * 105) + ", " + (40 + Math.random() * 100) + ", " + (40 + Math.random() * 100) + ")";
- wrap.style.opacity = 0.5 + Math.random() * 0.5;
+if (el.tagName == "INPUT" || el.tagName == "TEXTAREA" ||
+el.tagName == "BUTTON" || el.tagName == "SELECT") continue;
+if (el.closest && el.closest("a,button")) continue;
+if (el == lastSpot) continue;
 
- } else {
+var children = el.childNodes;
 
- var tiny = document.createElement("img");
- tiny.src = source;
- tiny.style.width = (8 + Math.random() * 10) + "px";
- tiny.style.height = "auto";
- tiny.style.verticalAlign = "middle";
- tiny.style.cursor = "pointer";
- tiny.style.opacity = 0.7 + Math.random() * 0.3;
- wrap.appendChild(tiny);
- }
+for (var j = 0; j < children.length; j++) {var textNode = children[j];
 
- wrap.style.cursor = "pointer";
+if (textNode.nodeType != 3) continue;
+if (!textNode.textContent.trim()) continue;
 
- var before = document.createDocumentFragment();
+var textBits = textNode.textContent.split(/(\s+)/);
+var wordSlots = getWordIndexes(textBits);
 
- for (var k = 0; k < bits.length; k++) {
- if (k == word) before.appendChild(wrap);
- else before.appendChild(document.createTextNode(bits[k]));
- }
+if (wordSlots.length == 0) continue;
 
- pick.thing.parentNode.replaceChild(before, pick.thing);
- old = pick.thing;
+hidingSpots.push({type: "word",
+thing: textNode,
+parent: el,
+bits: textBits,
+words: wordSlots
+});
 
- } else {
+}
 
- waldo = pick.thing;
- old = waldo.style.filter;
- waldo.id = "waldo";
- waldo.style.filter = "sepia(" + (0.2 + Math.random() * 0.5) + ") saturate(" + (1.2 + Math.random() * 3) + ") hue-rotate(" + (300 + Math.random() * 40) + "deg)";
- waldo.style.cursor = "pointer";
+}
 
- }
+}
 
- waldo = document.getElementById("waldo");
 
- waldo.onclick = function(e) {
+// woords
+function getWordIndexes(textBits) {
 
- e.preventDefault();
- e.stopPropagation();
+var wordSlots = [];
 
- waldo.style.opacity = "1";
- waldo.style.color = "red";
- waldo.style.filter = "none";
- waldo.style.cursor = "default";
- waldo.onclick = null;
+for (var i = 0; i < textBits.length; i++) {
 
- message = document.createElement("div");
- message.textContent = "YOU FOUND WALDO!";
- message.style.position = "fixed";
- message.style.top = "20px";
- message.style.left = "50%";
- message.style.transform = "translateX(-50%)";
- message.style.background = "#d71920";
- message.style.color = "white";
- message.style.padding = "12px 20px";
- message.style.font = "bold 16px Arial";
- message.style.borderRadius = "8px";
- message.style.zIndex = "999999";
- message.style.pointerEvents = "none";
+if (/^[a-zA-Z]{3,}$/.test(textBits[i])) {
+wordSlots.push(i);
+}
 
- document.body.appendChild(message);
+}
 
- setTimeout(function() {
+return wordSlots;
 
- if (message) {
- message.remove();
- message = null;
- }
- if (pick.type == "word") {
- var back = document.getElementById("waldo");
- if (back) back.parentNode.replaceChild(old, back);
- } else {
- waldo.id = "";
- waldo.style.filter = old;
- waldo.style.cursor = "";
- } 
+}
 
- hide(); 
 
- }, 1300);
- 
- };
+// just pick somewhere random
+function pickRandom(list) {
+if (!list || list.length == 0) return null;
+return list[Math.floor(Math.random() * list.length)];
+}
 
- }
-  
- hide();
 
- })();
+// dont pick the exact same place over and over
+function getAnotherSpot(hidingSpots) {
+var otherSpots = [];
+for (var i = 0; i < hidingSpots.length; i++) {
+var spot = hidingSpots[i];
+
+if (spot.thing != lastSpot && spot.parent != lastSpot) {
+otherSpots.push(spot);
+}
+
+}
+
+if (otherSpots.length > 0) return pickRandom(otherSpots);
+
+return pickRandom(hidingSpots);
+
+}
+
+
+// red word, waldo image or a peekaboo
+function makeWordDisguise(spot) {
+
+var disguise = document.createElement("span");
+disguise.id = "waldo";
+disguise.style.cursor = "pointer";
+
+var trick = Math.floor(Math.random() * 3);
+
+if (trick == 0) {
+makeRedWord(disguise, spot);
+}
+
+else if (trick == 1) {
+makeTinyWaldo(disguise);
+}
+
+else {
+makePeekaboo(disguise);
+}
+
+return disguise;
+
+}
+
+
+// suspiciously red word
+function makeRedWord(disguise, spot) {
+disguise.textContent = spot.bits[spot.word];
+disguise.style.color = "rgb(" +(160 + Math.random() * 95) + "," +(30 + Math.random() * 110) + "," +(30 + Math.random() * 110) + ")";
+
+disguise.style.opacity = 0.5 + Math.random() * 0.5;
+
+}
+
+
+// tiny little waldo
+function makeTinyWaldo(disguise) {
+
+var littleWaldo = document.createElement("img");
+littleWaldo.src = waldoPic;
+littleWaldo.style.width = (8 + Math.random() * 9) + "px";
+littleWaldo.style.height = "auto";
+littleWaldo.style.verticalAlign = "middle";
+littleWaldo.style.cursor = "pointer";
+littleWaldo.style.opacity = 0.7 + Math.random() * 0.3;
+
+disguise.appendChild(littleWaldo);
+
+}
+
+
+// barely showing him
+function makePeekaboo(disguise) {
+
+var peekHole = document.createElement("span");
+var peekGuy = document.createElement("img");
+var peekSize = 5 + Math.random() * 15;
+peekHole.style.display = "inline-block";
+peekHole.style.width = peekSize + "px";
+peekHole.style.height = "20px";
+peekHole.style.overflow = "hidden";
+peekHole.style.position = "relative";
+peekHole.style.verticalAlign = "middle";
+peekGuy.src = waldoPic;
+peekGuy.style.position = "absolute";
+peekGuy.style.width = "32px";
+peekGuy.style.maxWidth = "none";
+peekGuy.style.height = "auto";
+peekGuy.style.top = "-2px";
+
+// DO A FLIP
+if (Math.random() > 0.5) {
+peekGuy.style.left = "0px";
+}
+else {
+peekGuy.style.left = -(32 - peekSize) + "px";
+}
+peekHole.appendChild(peekGuy);
+disguise.appendChild(peekHole);
+}
+
+
+// swap the word out for Waldo
+function putWaldoInText(spot) {
+var disguise = makeWordDisguise(spot);
+var newText = document.createDocumentFragment();
+
+for (var i = 0; i < spot.bits.length; i++) {
+
+if (i == spot.word) {
+newText.appendChild(disguise);
+}
+else {
+newText.appendChild(document.createTextNode(spot.bits[i]));
+}
+}
+
+spot.thing.parentNode.replaceChild(newText, spot.thing);
+return disguise;
+}
+
+
+// muehehehe
+function turnImageIntoWaldo(pic) {
+var oldFilter = pic.style.filter;
+var oldCursor = pic.style.cursor;
+var oldId = pic.id;
+
+pic.id = "waldo";
+pic.style.cursor = "pointer";
+
+pic.style.filter = "sepia(" + (0.2 + Math.random() * 0.5) +
+") saturate(" + (1.5 + Math.random() * 3) +
+") hue-rotate(" + (300 + Math.random() * 40) + "deg)";
+
+return {thing: pic,filter: oldFilter,cursor: oldCursor,id: oldId
+};
+}
+
+// you found him!!
+function makeFoundMessage() {
+var msg = document.createElement("div");
+msg.textContent = "YOU FOUND WALDO!";
+msg.style.position = "fixed";msg.style.top = "20px";
+msg.style.left = "50%";
+msg.style.transform = "translateX(-50%)";
+msg.style.background = "#d71920";
+msg.style.color = "white";
+msg.style.padding = "12px 20px";
+msg.style.font = "bold 16px Arial";
+msg.style.borderRadius = "8px";
+msg.style.zIndex = "999999";
+msg.style.pointerEvents = "none";
+return msg;
+}
+// rmove stale notification
+function removeFoundMessage() {
+
+if (foundMsg) {
+foundMsg.remove();
+foundMsg = null;
+}
+}
+
+
+// fix pages
+function restoreText(spot, waldo) {
+if (!spot || !spot.thing || !waldo) return;
+if (waldo.parentNode && spot.thing.parentNode) {
+waldo.parentNode.replaceChild(spot.thing, waldo);
+}
+}
+
+
+// put the image back the way it was
+function restoreImage(savedImage) {
+if (!savedImage || !savedImage.thing) return;
+var pic = savedImage.thing;
+pic.id = savedImage.id;
+pic.style.filter = savedImage.filter;
+pic.style.cursor = savedImage.cursor;
+pic.onclick = null;
+}
+
+
+// clicking him
+function waldoClicked(e) {
+
+if (e) {
+e.preventDefault();
+e.stopPropagation();
+}
+
+var waldo = currentWaldo;
+var hidingThing = currentHidingThing;
+if (!waldo || !hidingThing) return;
+waldo.style.opacity = "1";
+waldo.style.color = "red";
+waldo.style.filter = "none";
+waldo.style.cursor = "default";
+waldo.onclick = null;
+
+foundMsg = makeFoundMessage();
+document.body.appendChild(foundMsg);
+
+setTimeout(function() {
+removeFoundMessage();
+// fix hiding
+if (hidingThing.type == "word") {
+restoreText(hidingThing, waldo);
+}
+else {
+restoreImage(hidingThing.saved);
+}
+
+currentWaldo = null;
+currentHidingThing = null;
+hideWaldo();
+
+}, 1300);
+
+}
+
+
+// waldo can be touched
+function giveWaldoClick(waldo) {
+waldo.onclick = waldoClicked;
+
+}
+
+
+// main hiding 
+function hideWaldo() {
+var allThings = document.getElementsByTagName("*");
+var hidingSpots = [];
+
+findImageSpots(allThings, hidingSpots);
+findWordSpots(allThings, hidingSpots);
+
+if (hidingSpots.length == 0) return;
+var hidingThing = getAnotherSpot(hidingSpots);
+if (!hidingThing) return;
+
+lastSpot = hidingThing.type == "image" ?
+hidingThing.thing : hidingThing.parent;
+
+
+// if he's going in a word, we need to remember the original text
+if (hidingThing.type == "word") {
+
+var word = pickRandom(hidingThing.words);
+hidingThing.word = word;
+currentWaldo = putWaldoInText(hidingThing);
+currentHidingThing = hidingThing;
+
+}else {
+var savedImage = turnImageIntoWaldo(hidingThing.thing);
+
+hidingThing.saved = savedvedImage;
+
+currentWaldo = hidingThing.thing;
+currentHidingThing = hidingThing;
+}
+
+giveWaldoClick(currentWaldo);
+}
+
+
+// he hides
+hideWaldo();
+})();
