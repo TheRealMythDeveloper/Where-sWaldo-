@@ -1,87 +1,134 @@
-// ==UserScript==
-// @name         Where's Waldo?
-// @namespace    MythosStudios
-// @version      0.2
-// @description  hide waldo on websites
-// @match        *://*/*
-// @grant        none
-// ==/UserScript==
 
-(function() {
+ // ==UserScript==
+ // @name         Where's Waldo?
+ // @namespace    MythosStudios
+ // @version      0.21
+ // @description  hide waldo on websites
+ // @match        *://*/*
+ // @grant        none
+ // @licsense     MIT
+ // ==/UserScript==
 
-if (window.top != window.self) return;
-if (document.getElementById("waldo")) return;
+ (function() {
 
-var words = document.getElementsByTagName("*");
-var places = []; 
+ if (window.top != window.self) return;
+ if (document.getElementById("waldo")) return;
 
-for (var i = 0; i < words.length; i++) {
-    var thing = words[i];
+ var things = document.getElementsByTagName("*");
+ var hiding = [];
 
-    if (thing.children.length > 0) continue;
-    if (!thing.textContent.trim()) continue;
+ for (var i = 0; i < things.length; i++) {
+ var el = things[i];
 
-    var rect = thing.getBoundingClientRect();
-    if (rect.width < 40 || rect.height < 10) continue;
-    if (rect.width > window.innerWidth) continue;
+ if (el.tagName == "SCRIPT" || el.tagName == "STYLE" || el.tagName == "NOSCRIPT") continue;
+ if (el.tagName == "IFRAME") continue;
+ if (el.closest && el.closest("#waldo-found")) continue; 
 
-    places.push(thing);
-}
+ // images can be waldo too 
+ if (el.tagName == "IMG" && el.width > 35 && el.height > 35) {
+ hiding.push({type:"image", thing:el});
+ }
 
-if (places.length == 0) return;
+ // looking for text to hide in
+ for (var j = 0; j < el.childNodes.length; j++) {
+ var node = el.childNodes[j];
 
-var spot = places[Math.floor(Math.random() * places.length)];
+ if (node.nodeType != 3) continue;
+ if (!node.textContent.trim()) continue;
 
-var img = document.createElement("img");
-img.id = "waldo";
-img.src = "https://therealmythdeveloper.github.io/Where-sWaldo-/240-2404326_waldo-wheres-wally-1546634879-removebg-preview.png";
-img.alt = "Waldo";
+ var parts = node.textContent.split(/(\s+)/);
+ var count = 0;
 
-var size = Math.random() * 25 + 25;
-var rect = spot.getBoundingClientRect();
+ for (var k = 0; k < parts.length; k++) {
+ if (/^[a-zA-Z]{3,}$/.test(parts[k])) count++;
+ }
 
-spot.style.position = "relative";
+ if (count > 0) {
+ hiding.push({type:"word", thing:node, parts:parts});
+ }
+ }
+ }
 
-img.style.position = "absolute";
-img.style.width = size + "px";
-img.style.height = "auto";
-img.style.left = Math.random() * Math.max(0, rect.width - size) + "px";
-img.style.top = Math.random() * Math.max(0, rect.height - size) + "px";
-img.style.zIndex = "1";
-img.style.cursor = "pointer";
-img.style.userSelect = "none";
-img.style.display = "block";
+ if (hiding.length == 0) return;
 
-img.draggable = false;
+ var pick = hiding[Math.floor(Math.random() * hiding.length)];
 
-img.onclick = function(e) {
+ if (pick.type == "word") {
 
-    e.stopPropagation();
+ var bits = pick.parts;
+ var word = Math.floor(Math.random() * bits.length);
 
-    img.style.width = "90px";
-    img.style.zIndex = "999999";
-    img.style.cursor = "default";
+ while (!/^[a-zA-Z]{3,}$/.test(bits[word])) {
+ word = Math.floor(Math.random() * bits.length);
+ }
 
-    var text = document.createElement("div");
-    text.innerHTML = "YOU FOUND WALDO!";
+ var span = document.createElement("span");
+ span.id = "waldo";
+ span.style.color = "red";
+ span.style.cursor = "pointer";
 
-    text.style.position = "fixed";
-    text.style.top = "20px";
-    text.style.left = "50%";
-    text.style.transform = "translateX(-50%)";
-    text.style.background = "#d71920";
-    text.style.color = "white";
-    text.style.padding = "12px 20px";
-    text.style.font = "bold 16px Arial";
-    text.style.borderRadius = "8px";
-    text.style.zIndex = "999999";
-    text.style.pointerEvents = "none";
+ for (var k = 0; k < bits.length; k++) {
+ if (k == word) {
+ span.textContent = bits[k];
+ pick.thing.parentNode.insertBefore(span, pick.thing);
+ } else {
+ span.parentNode && span.appendChild(document.createTextNode(bits[k]));
+ }
+ }
 
-    document.body.appendChild(text);
+ // rebuild the word around the disguise
+ var before = document.createDocumentFragment();
 
-    img.onclick = null;
-};
+ for (var k = 0; k < bits.length; k++) {
+ if (k == word) {
+ before.appendChild(span);
+ } else {
+ before.appendChild(document.createTextNode(bits[k]));
+ }
+ }
 
-spot.appendChild(img);
+ pick.thing.parentNode.replaceChild(before, pick.thing);
 
-})();
+ } else {
+
+ var img = pick.thing;
+ img.id = "waldo";
+ img.style.filter = "sepia(1) saturate(8) hue-rotate(-35deg)";
+ img.style.cursor = "pointer";
+
+ }
+
+ var waldo = document.getElementById("waldo");
+
+ waldo.onclick = function(e) {
+ e.preventDefault();
+ e.stopPropagation();
+
+ if (pick.type == "image") {
+ waldo.style.filter = "none";
+ waldo.style.outline = "3px solid red";
+ }
+
+ waldo.style.color = "red";
+ waldo.style.cursor = "default";
+ waldo.onclick = null;
+
+ var found = document.createElement("div");
+ found.textContent = "YOU FOUND WALDO!";
+
+ found.style.position = "fixed";
+ found.style.top = "20px";
+ found.style.left = "50%";
+ found.style.transform = "translateX(-50%)";
+ found.style.background = "#d71920";
+ found.style.color = "white";
+ found.style.padding = "12px 20px";
+ found.style.font = "bold 16px Arial";
+ found.style.zIndex = "999999";
+ found.style.borderRadius = "8px";
+ found.style.pointerEvents = "none";
+
+ document.body.appendChild(found);
+ };
+
+ })();
